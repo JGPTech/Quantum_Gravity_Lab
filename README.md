@@ -1,314 +1,398 @@
----
-
 # Quantum Gravity Lab (QGL)
 
-**QGL** is a small, GPU–friendly, semi-classical **quantum gravity lab in code**.
+**Quantum Gravity Lab (QGL)** is a small, semi-classical **quantum gravity lab in code**.
 
-It treats a test particle orbiting a compact mass, a co-moving quantum sensor (Jaynes–Cummings qubit–cavity system), and a phenomenological “complexity scalar” that modulates GR–like corrections to the orbit and the quantum dynamics.
+It couples:
 
-The goal is **not** to claim a new theory of quantum gravity, but to provide a **clean, reproducible sandbox** where:
+- a test particle orbiting a compact mass (GR-like orbit),
+- a co-moving quantum sensor (Jaynes–Cummings qubit–cavity),
+- a phenomenological **complexity scalar** that modulates both gravity and quantum dynamics,
 
-* Classical GR–like effects (perihelion precession, frame dragging)
-* Quantum dynamics (qubit + cavity, entanglement, Bell-type observables)
-* Information-theoretic structure (complexity, redshifted clocks)
+into a single, inspectable simulation pipeline.
 
-are all wired into a single, inspectable computational engine.
+The goal is **not** “here is a new theory of quantum gravity.”  
+The goal is **“here is a clean, reproducible sandbox where geometry, quantum dynamics, and information-theoretic structure talk to each other.”**
 
 ---
 
-## Physics model in one page
+## 1. Physics model in one page
 
-### 1. Classical sector: orbit in a curved background
+### 1.1 Classical sector: orbit in a curved background
 
-We model a test body of mass (m) orbiting a central mass (M) in coordinate time (t).
+QGL tracks a test body of mass `m` moving in the field of a central mass `M`.  
+Everything is integrated in coordinate time `t`.
 
-The total acceleration is a superposition of:
+The total acceleration is decomposed as
 
-[
-\mathbf{a}*\text{total}
-= \mathbf{a}*\text{Newt}
+```text
+a_total = a_Newt + a_GR + a_LT
+````
 
-* \mathbf{a}_\text{GR}
-* \mathbf{a}_\text{LT}.
-  ]
+where:
 
-- **Newtonian gravity**
-  [
-  \mathbf{a}_\text{Newt} = -\frac{GM}{r^3},\mathbf{r}.
-  ]
+#### Newtonian gravity
 
-- **GR-like precession term**
-  We emulate the Schwarzschild (1/r^3) correction to the effective potential via an explicit (1/r^4) force term,
-  [
-  \mathbf{a}*\text{GR}
-  = -\Lambda_Q(r),\gamma(v),\frac{\mathbf{r}}{r^4},
-  ]
-  where (\gamma = (1-v^2/c^2)^{-1/2}).
-  The coupling
-  [
-  \Lambda_Q(r) = \alpha*\text{GR} , C_Q(r), \qquad
-  \alpha_\text{GR} = \frac{3GM L^2}{c^2}
-  ]
-  is chosen so that the long-term perihelion precession matches the standard 1PN GR prediction. This is enforced numerically by the **calibration loop** in `calibrate.py`.
+```text
+a_Newt = - G M * r_vec / r^3
+```
 
-- **Lense–Thirring frame dragging (optional)**
-  For a spinning central body with dimensionless spin (a_\text{spin} = J/(Mc)),
-  [
-  \mathbf{a}*\text{LT}
-  = \frac{2GMa*\text{spin}}{c^2 r^3} (\mathbf{v}\times\hat{\mathbf{z}})
-  ]
-  is added as a gravitomagnetic correction. In code this is implemented via a simple in-plane rotation term.
+with `r_vec` the position vector and `r = |r_vec|`.
 
-### 2. Complexity scalar: where GR turns on
+#### GR-like precession term
 
-QGL uses a scalar **complexity field** (C_Q(r)) to control how “quantum-sensitive” a given region of the orbit is:
+We mimic the Schwarzschild 1PN precession by adding an explicit `1 / r^4` force:
 
-[
-C_Q(r) = \frac{1}{1 + \left(\dfrac{r}{r_\text{trans}}\right)^p}, \qquad
-r_\text{trans} = k_{rq} , a(1+e).
-]
+```text
+a_GR = - Lambda_Q(r) * gamma(v) * r_vec / r^4
+```
 
-* (p) (the “complexity power”) is calibrated from orbit precession.
-* (r_\text{trans}) tracks the orbital apocenter, so the transition scale moves with the specific orbit.
-* The complement (C_N(r)=1-C_Q(r)) can be used for explicitly Newtonian weighting if desired.
+* `gamma(v) = 1 / sqrt(1 - v^2 / c^2)` is the Lorentz factor.
+* `Lambda_Q(r)` is a coupling coefficient,
+* `v` is the speed of the test body.
 
-Operationally, **(C_Q) is just a scalar knob** that:
+The coupling is
+
+```text
+Lambda_Q(r) = alpha_GR * C_Q(r)
+alpha_GR    = 3 * G * M * L^2 / c^2
+```
+
+where:
+
+* `L` is the orbital angular momentum magnitude,
+* `C_Q(r)` is the complexity scalar (see below).
+
+`alpha_GR` is chosen so that, after calibration, the long-term perihelion precession matches the standard GR 1PN value
+
+```text
+Δω_GR = 6π G M / (c^2 a (1 - e^2))
+```
+
+for a bound orbit with semi-major axis `a` and eccentricity `e`.
+This matching is enforced numerically by the **calibration loop** in `calibrate.py`.
+
+#### Lense–Thirring frame dragging (optional)
+
+To represent a spinning central body, QGL can add a simple gravitomagnetic correction:
+
+```text
+a_LT = (2 G M a_spin / (c^2 r^3)) * (v_vec × z_hat)
+```
+
+where `a_spin ~ J / (M c)` is a dimensionless spin parameter and `z_hat` is the spin axis.
+In code this is implemented as an in-plane rotation of the velocity components.
+
+---
+
+### 1.2 Complexity scalar: where “quantum sensitivity” turns on
+
+QGL uses a scalar **complexity field** `C_Q(r)` to control how strongly GR-like and quantum effects are switched on at a given radius:
+
+```text
+C_Q(r) = 1 / (1 + (r / r_trans)^p)
+r_trans = k_rq * r_apo
+r_apo   = a * (1 + e)
+```
+
+* `p` (“complexity power”) is a calibrated parameter.
+* `r_trans` is tied to the apocenter `r_apo` of the orbit, so the transition scale follows the specific orbit.
+* `k_rq` is a dimensionless factor that sets where the transition happens in units of `r_apo`.
+
+Interpretation:
+
+* `C_Q ~ 1` near the compact mass → GR-like corrections and quantum couplings are strong.
+* `C_Q ~ 0` far away → dynamics revert to nearly Newtonian and quantum couplings are weak.
+
+The complement
+
+```text
+C_N(r) = 1 - C_Q(r)
+```
+
+can be used wherever an explicitly “more Newtonian” weighting is convenient.
+
+Operationally, `C_Q(r)` is the **main control knob** that:
 
 * weights GR vs Newtonian forces,
-* modulates quantum sensor parameters,
-* and feeds into information-theoretic diagnostics (e.g. Bell parameter ansatz).
-
-### 3. Clocks, lapse, and redshift
-
-The orbit is integrated in coordinate time (t). The co-moving quantum system evolves in proper time (\tau):
-
-[
-\frac{d\tau}{dt} = \sqrt{1-\frac{2GM}{c^2 r}}.
-]
-
-This same Schwarzschild lapse controls:
-
-* the quantum step size (\Delta\tau = (d\tau/dt),\Delta t),
-* and the gravitational redshift used in frequency comparisons:
-  [
-  1+z = \frac{\nu_o}{\nu_e}
-  = \frac{ (d\tau/dt)*{r_e} }{ (d\tau/dt)*{r_o} }.
-  ]
-
-### 4. Quantum sector: co-moving JC sensor
-
-Along the orbit we propagate a Jaynes–Cummings (JC) qubit–cavity system with Hamiltonian
-
-[
-\hat{H}_\text{JC}
-= \hbar\omega_c(r)\hat{a}^\dagger\hat{a}
-
-* \frac{\hbar\omega_a(r)}{2}\hat{\sigma}_z
-* \hbar g(v)\left(\hat{a}^\dagger\hat{\sigma}*- + \hat{a}\hat{\sigma}*+\right),
-  ]
-
-with **geometry–dependent parameters**:
-
-[
-\begin{aligned}
-\omega_c(r) &= \omega_{c,0}
-\left[1 + s_\rho,\frac{\rho(r)}{\rho_\text{ref}}\right], \
-\omega_a(r) &= \omega_{a,0}
-\left[1 + s_\phi,\frac{\Phi(r)}{\Phi_\text{ref}}\right], \
-g(v) &= g_0
-\left[1 + s_v,\frac{|\mathbf{v}|}{v_\text{ref}}\right].
-\end{aligned}
-]
-
-* (\rho(r)\propto r^{-2}) is a simple local “density proxy”.
-* (\Phi(r)=-GM/r) is the Newtonian potential.
-* (s_\rho, s_\phi, s_v) control how strongly geometry feeds into the JC sector.
-
-The density matrix (\rho) is evolved by
-
-[
-\rho(t+\Delta t)
-= e^{-i\hat{H}*\text{JC}\Delta\tau/\hbar},
-\rho(t),
-e^{+i\hat{H}*\text{JC}\Delta\tau/\hbar},
-]
-
-optionally followed by a simple Lindblad-style dissipation step.
-
-From (\rho) we compute:
-
-* the reduced qubit state (\rho_q),
-* Bloch vector ((\langle\sigma_x\rangle, \langle\sigma_y\rangle, \langle\sigma_z\rangle)),
-* photon number (\langle n\rangle),
-* coherence (|\rho_{01}|),
-* and entanglement entropy (S(\rho_q)).
-
-### 5. Bell-style correlations (phenomenological)
-
-To explore how curvature and complexity might degrade CHSH-type signals, QGL defines
-
-[
-\beta(r)
-= \beta_\text{cl}
-+ C_Q^\text{eff}(r),\bigl(\beta_\text{qm}-\beta_\text{cl}\bigr),
-]
-
-where (\beta_\text{cl}=2) (classical bound) and (\beta_\text{qm}=2\sqrt{2}) (Tsirelson limit). The effective coefficient
-
-[
-C_Q^\text{eff}(r)
-= C_Q(r),
-\sqrt{1-\frac{2GM}{c^2 r}},
-\left(2-\frac{1}{\gamma}\right)
-]
-
-folds in redshift and relativistic motion. This is **explicitly marked as a model ansatz**, not a derived prediction.
+* modulates the Jaynes–Cummings parameters,
+* and enters our information-theoretic diagnostics (Bell parameter ansatz, etc).
 
 ---
 
-## Repository layout
+### 1.3 Clocks, lapse, and redshift
+
+The orbit is integrated in **coordinate time** `t` (time at infinity).
+The co-moving quantum sensor evolves in **proper time** `τ`.
+
+For a Schwarzschild-like background, the relation is
+
+```text
+dτ/dt = sqrt(1 - 2 G M / (c^2 r))
+```
+
+This lapse factor is used for:
+
+* converting each coordinate-time step `Δt` into the proper-time step `Δτ` used in quantum evolution:
+
+  ```text
+  Δτ = (dτ/dt) * Δt
+  ```
+
+* computing simple gravitational redshifts between two radii `r_e` (emitter) and `r_o` (observer):
+
+  ```text
+  1 + z = ν_o / ν_e = (dτ/dt at r_e) / (dτ/dt at r_o)
+  ```
+
+---
+
+### 1.4 Quantum sector: co-moving Jaynes–Cummings sensor
+
+Along the orbit we propagate a Jaynes–Cummings (JC) system:
+
+* a two-level atom (qubit),
+* coupled to a single bosonic mode (cavity).
+
+The Hamiltonian in the rotating-wave approximation is
+
+```text
+H_JC = ħ ω_c(r) a† a
+     + (ħ ω_a(r) / 2) σ_z
+     + ħ g(v) (a† σ_- + a σ_+)
+```
+
+The key idea is that **all three parameters** are tied to geometry:
+
+```text
+ω_c(r) = ω_c0 * [1 + s_ρ * (ρ(r) / ρ_ref)]
+ω_a(r) = ω_a0 * [1 + s_φ * (Φ(r) / Φ_ref)]
+g(v)   = g_0  * [1 + s_v * (|v|   / v_ref)]
+```
+
+where:
+
+* `ρ(r) ∝ r^-2` is a simple local “density proxy”,
+* `Φ(r) = - G M / r` is the gravitational potential,
+* `s_ρ`, `s_φ`, `s_v` are user-tunable sensitivity coefficients.
+
+**Time evolution**
+
+At each step:
+
+1. Convert `Δt` → `Δτ` using the lapse factor.
+
+2. Compute the local `H_JC( r(t), v(t) )`.
+
+3. Update the density matrix `ρ` by
+
+   ```text
+   ρ(t + Δt) = U ρ(t) U†
+   U = exp(-i H_JC Δτ / ħ)
+   ```
+
+4. Optionally apply a simple Lindblad-style dissipation for cavity decay and qubit relaxation.
+
+From `ρ` we compute:
+
+* the reduced qubit state `ρ_q` (trace out the cavity),
+* Bloch vector components `⟨σ_x⟩`, `⟨σ_y⟩`, `⟨σ_z⟩`,
+* photon number `⟨n⟩`,
+* coherence `|ρ_01|`,
+* and entanglement entropy `S(ρ_q)`.
+
+These are what drive the Bloch sphere and quantum diagnostics in the viewers.
+
+---
+
+### 1.5 Bell-style correlations (phenomenological)
+
+To explore how curvature and motion might affect CHSH-type signals, QGL defines a **model ansatz** for an effective Bell parameter `β(r)`:
+
+```text
+β(r) = β_cl + C_Q_eff(r) * (β_qm - β_cl)
+```
+
+with:
+
+* `β_cl = 2`   (classical CHSH bound),
+* `β_qm = 2√2` (Tsirelson bound).
+
+The effective coefficient combines:
+
+```text
+C_Q_eff(r) = C_Q(r)
+             * sqrt(1 - 2 G M / (c^2 r))   # gravitational redshift
+             * (2 - 1/γ)                   # kinematic factor
+```
+
+where `γ` is the Lorentz factor.
+
+**Important:**
+This `β(r)` is **explicitly a phenomenological model**, not a claim about the actual behavior of CHSH experiments in GR. The point is to have a tunable, physically-motivated diagnostic that responds to curvature, speed, and complexity in an interpretable way.
+
+---
+
+## 2. Repository layout
 
 ```text
 QUANTUMGRAVITYLAB/
 ├── calibrate.py            # Precession-based calibration of complexity_power p, k_rq, etc.
-├── documentation.pdf       # Theory & implementation notes (this spec in LaTeX/PDF form)
-├── unified_sandbox_core.py # QGL core: equations of motion, complexity field, JC engine
-├── unified_simulation.py   # “Offline” QGL runner + standard orbit/JC dashboards
-├── unified_bell_state.py   # Bell State Edition: entanglement + CHSH visualization UI
+├── documentation.pdf       # Theory & implementation notes (LaTeX/PDF spec)
+├── unified_sandbox_core.py # QGL core: config, EOM, complexity field, JC engine
+├── unified_simulation.py   # “Offline” QGL run + standard orbit/JC viewer
+├── unified_bell_state.py   # Bell State Edition: entanglement + CHSH visualization
 ├── unified_darkmatter.py   # Dark-matter / protomatter sandbox built on the same core
 ```
 
 High-level roles:
 
 * **`unified_sandbox_core.py`**
-  Core `Config`, orbit integrator, GR/complexity terms, JC operators, clock conversions, and helper utilities.
+  Core `Config`, orbit integrator, GR/complexity force terms, JC operators, clock conversions, and shared utilities.
 
 * **`unified_simulation.py`**
-  A standard **Quantum Gravity Lab** run: configure orbit, integrate once, and step through the results with interactive Matplotlib dashboards.
+  A standard **QGL run**: configure an orbit, integrate once, evolve the JC sensor, and inspect everything via a Matplotlib dashboard.
 
 * **`unified_bell_state.py`**
-  “Bell State Edition” with a front-end **Entanglement Console** and a **BellCorrelationViewer** showing:
+  “Bell State Edition” with:
 
-  * (\beta(t)) vs CHSH bounds,
-  * entanglement entropy, concurrence, and discord,
-  * orbit colored by violation strength,
-  * phase-space plots,
-  * Bloch sphere animation of the qubit.
+  * an **Entanglement Console** to choose presets and parameters,
+  * a **BellCorrelationViewer** showing `β(t)`, violation regions, entropy, concurrence, discord, orbit coloring, phase space, Bloch sphere, photons, and coherence.
 
 * **`unified_darkmatter.py`**
-  Uses the same machinery to explore dark-sector / protomatter toy models (still experimental).
+  Experimental dark-sector / “protomatter” sandbox reusing the same complexity and coupling machinery.
 
 * **`calibrate.py`**
-  Scans over orbits and `complexity_power` values to match measured precession to the GR 1PN value, then writes a `complexity_power_grid_scan.csv` table that the main scripts can load.
+  Scans over `(p, e)` grids, optimizes `complexity_power` to match GR precession, and writes `complexity_power_grid_scan.csv`.
+  Main scripts use this table and only fall back to on-the-fly calibration for unseen orbits.
 
 ---
 
-## Installation
+## 3. Installation
 
-QGL is pure Python + SciPy stack.
+QGL uses a standard scientific Python stack.
 
 ```bash
 git clone https://github.com/<your-handle>/QuantumGravityLab.git
 cd QuantumGravityLab
 
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+# Linux / macOS:
+source .venv/bin/activate
+# Windows:
+# .venv\Scripts\activate
 
 pip install numpy scipy matplotlib pandas
 ```
 
-(If you want GPU acceleration later, you can swap in CuPy / JAX at the array level, but the reference implementation is CPU-only.)
+The reference implementation runs on CPU; array backends can be swapped to CuPy / JAX for GPU experiments.
 
 ---
 
-## Quickstart
+## 4. Quickstart
 
-### 1. Run a standard QGL orbit
+### 4.1 Standard QGL orbit
 
 ```bash
 python unified_simulation.py
 ```
 
-* Choose orbital parameters (p, e, number of orbits, output resolution).
-* The script will:
+What it does:
 
-  * look up (or calibrate) `complexity_power` for that orbit,
-  * integrate the trajectory,
-  * evolve the JC system along it,
-  * open a viewer showing orbit, clocks, complexity and Bloch dynamics.
+* loads or calibrates `complexity_power` for the chosen `(p, e)` orbit,
+* integrates the trajectory (including GR-like corrections and optional frame dragging),
+* evolves the JC sensor along the orbit in proper time,
+* opens an interactive viewer with:
 
-### 2. Bell State Edition
+  * orbit geometry,
+  * energies and angular momentum,
+  * clock rates (GR vs quantum),
+  * complexity,
+  * Bloch sphere and quantum diagnostics.
+
+### 4.2 Bell State Edition
 
 ```bash
 python unified_bell_state.py
 ```
 
-* **Stage 1:** Entanglement Console
+1. **Entanglement Console**
 
-  * pick a preset (“MAX VIOLATION”, “DECOHERENCE”, “SINGULARITY”),
-  * or tune `p`, `e`, `n_orbits`, `n_output`, and JC sensitivity sliders.
+   * choose a preset like “MAX VIOLATION”, “DECOHERENCE”, or “SINGULARITY”,
+   * or tune `p`, `e`, `n_orbits`, `n_output`, and JC sensitivity sliders `s_ρ`, `s_φ`, `s_v`.
 
-* Hit **“ENTANGLE”** to spawn the **BellCorrelationViewer**, which replays a single precomputed run and lets you:
+2. Press **“ENTANGLE”**
 
-  * scrub time with a slider or play/pause,
-  * see where Bell violations cluster in time and along the orbit,
-  * watch the qubit’s Bloch vector precess on the sphere,
-  * correlate photons, coherence, and entanglement with geometric conditions.
+   * QGL runs a single high-resolution simulation,
+   * launches **BellCorrelationViewer** in a separate process.
 
-### 3. Calibrate the complexity field explicitly
+3. In the viewer you can:
+
+   * play/pause, scrub time, and change playback speed,
+   * see where Bell violations cluster along the orbit,
+   * correlate entropy, concurrence, and discord with geometry and complexity,
+   * watch the qubit’s Bloch vector trace out trajectories on the sphere,
+   * inspect photons, coherence, and complexity over time.
+
+### 4.3 Complexity calibration
 
 ```bash
 python calibrate.py
 ```
 
-This script (or the calibration helpers inside it) will:
+This script:
 
-* scan a grid of ((p, e)) values,
-* optimize `complexity_power` for each orbit,
-* write a `complexity_power_grid_scan.csv` table.
-
-The simulation scripts will read this table and only fall back to on-the-fly calibration when a new ((p,e)) pair is requested.
+* scans a grid of `(p, e)` values,
+* finds `complexity_power` for each orbit that matches GR 1PN precession,
+* writes results to `complexity_power_grid_scan.csv`.
 
 ---
 
-## Scientific status & roadmap
+## 5. Scientific status and roadmap
 
-**What QGL is:**
+**What QGL *is***:
 
-* A **computational sandbox** where classical GR-like corrections, quantum sensors, and information-theoretic diagnostics are all coupled to the same orbit.
-* A place to test speculative **mappings** from geometric data → quantum parameters → emergent observables, with full access to the underlying code.
+* A **computational lab** where:
 
-**What QGL is not:**
+  * GR-inspired corrections,
+  * quantum sensors,
+  * and information-theoretic diagnostics
 
-* A finished quantum gravity theory.
-* A precision GR integrator for astrophysical production use.
+  all act on the same orbit in a consistent codebase.
 
-Current development directions:
+* A platform for experimenting with **geometry → quantum mapping**:
+  how curvature and motion can be turned into tunable quantum parameters and observables.
+
+**What QGL *is not***:
+
+* A claim of a complete or correct quantum gravity theory.
+* A production-grade astrodynamics package.
+
+### Near-term directions
 
 1. **Fusion-oriented extensions**
 
-   * Embed a simple **tokamak geometry** into the orbit model (closed field lines instead of Keplerian orbits).
-   * Treat the “test particle” as a representative ion packet; promote the JC sector to a stylized fusion sensor.
-   * Use the complexity field as a stand-in for local turbulence / instability, and explore control-style modulation of the quantum sector.
+   * Replace Keplerian orbits with a simple tokamak-style geometry (closed magnetic field lines).
+   * Interpret the “test particle” as a representative ion packet.
+   * Use the JC sector as a stylized fusion sensor, and the complexity field as a proxy for local turbulence / instability.
+   * Explore how modulation of geometric and complexity parameters might be used as a control-theoretic lever.
 
 2. **Dark matter / protomatter sandbox**
 
-   * Use `unified_darkmatter.py` to explore how alternate complexity / coupling rules change effective mass distributions and orbital signatures.
+   * Use `unified_darkmatter.py` to test alternative complexity / coupling rules and see how they modify effective mass distributions and orbital signatures.
 
-3. **GPU acceleration and batch ensembles**
+3. **GPU and ensemble runs**
 
-   * Run large ensembles of orbits + JC sensors in parallel on GPU, turning QGL into a “Monte Carlo quantum gravity lab”.
+   * Batch many orbits and JC sensors in parallel on GPU.
+   * Turn QGL into a Monte-Carlo-style “quantum gravity lab” for exploring parameter spaces.
 
 ---
 
-## License & contact
+## 6. License and contact
 
-You are free to read, fork, and experiment with this code.
-This project is released under the Creative Commons CC0 1.0 Universal Public Domain Dedication.
+This project is released under **CC0 1.0 Universal** (public domain dedication).
+You are free to copy, modify, and use it for any purpose, including commercial and research work.
 
-For questions, discussion, or collaboration ideas, please open an issue on the repository or contact:
+Questions, ideas, or collaboration proposals:
 
 **Jon Poplett**
-*Creator, Quantum Gravity Lab*
-
----
+Creator, Quantum Gravity Lab (QGL)
