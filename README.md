@@ -1,3 +1,6 @@
+Fixed calibration issue causing incorrect accuracy. Delete complexity_power_grid_scan.csv and build a fresh one. 
+
+
 # Quantum Gravity Lab (QGL)
 
 **Quantum Gravity Lab (QGL)** is a small, semi-classical **quantum gravity lab in code**.
@@ -396,3 +399,4 @@ Questions, ideas, or collaboration proposals:
 
 **Jon Poplett**
 Creator, Quantum Gravity Lab (QGL)
+
