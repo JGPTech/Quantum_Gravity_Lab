@@ -156,7 +156,7 @@ class Config:
         # For (p=60, e=0.6) we historically used k_rq≈1.245.
         # Now we prefer a dynamic value from (p, e) if a calibration
         # table is available.
-        self.k_rq_ratio_default: float = 1.045
+        self.k_rq_ratio_default: float = 1.77771
         self.k_rq_ratio_mode: str = "dynamic"  # or "fixed"
 
         if self.k_rq_ratio_mode == "dynamic":
@@ -1276,3 +1276,4 @@ __all__ = [
     "run_unified_trajectory",
     "extract_gr_observables",
 ]
+
