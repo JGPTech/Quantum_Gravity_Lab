@@ -78,34 +78,90 @@ plt.rcParams.update({
 })
 
 # ======================================================================
-#  CALIBRATION HELPERS
+#  CALIBRATION HELPERS  (FULL SLIDER STATE KEY)
 # ======================================================================
 
 CALIBRATION_CSV = "complexity_power_grid_scan.csv"
 
+# Columns we expect in the calibration table
+_CALIB_COLS = [
+    "p",
+    "e",
+    "n_orbits",
+    "n_output",
+    "s_rho",
+    "s_phi",
+    "s_v",
+    "with_jc",
+    "use_quantum_time",
+    "ok",
+    "complexity_power",
+    "rel_error",
+    "measured_shift",
+    "theory_shift",
+    "n_peri",
+    "k_rq_ratio",
+    "r_q_transition",
+]
+
 
 def load_calibration_df() -> pd.DataFrame:
-    """Load calibration CSV if it exists, else return empty DataFrame."""
-    if os.path.exists(CALIBRATION_CSV):
-        return pd.read_csv(CALIBRATION_CSV)
+    """
+    Load calibration CSV if it exists, else return an empty DataFrame.
 
-    cols = [
-        "p", "e", "n_orbits", "n_output", "ok", "complexity_power",
-        "rel_error", "measured_shift", "theory_shift", "n_peri",
-        "k_rq_ratio", "r_q_transition",
-    ]
-    return pd.DataFrame(columns=cols)
+    Ensures all expected columns are present so we can safely filter on the
+    full slider / run configuration state.
+    """
+    if os.path.exists(CALIBRATION_CSV):
+        df = pd.read_csv(CALIBRATION_CSV)
+    else:
+        df = pd.DataFrame(columns=_CALIB_COLS)
+
+    # Add any missing columns (for backwards compatibility with old CSVs)
+    for col in _CALIB_COLS:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    return df[_CALIB_COLS].copy()
 
 
 def save_calibration_df(df: pd.DataFrame) -> None:
     df.to_csv(CALIBRATION_CSV, index=False)
 
 
-def find_calibrated_row(df: pd.DataFrame, p: float, e: float) -> Optional[pd.Series]:
-    """Return best existing calibration row for (p,e), or None."""
+def _rows_match_run_cfg(df: pd.DataFrame, run_cfg: "RunConfig") -> pd.DataFrame:
+    """
+    Return subset of rows whose stored configuration matches the given RunConfig.
+    Matching is done on the FULL slider state:
+
+      (p, e, n_orbits, n_output, s_rho, s_phi, s_v, with_jc, use_quantum_time)
+
+    Floats use isclose, booleans use exact match.
+    """
     if df.empty:
-        return None
-    rows = df[(np.isclose(df["p"], p)) & (np.isclose(df["e"], e))]
+        return df
+
+    mask = (
+        np.isclose(df["p"].astype(float), float(run_cfg.p))
+        & np.isclose(df["e"].astype(float), float(run_cfg.e))
+        & (df["n_orbits"].astype(int) == int(run_cfg.n_orbits))
+        & (df["n_output"].astype(int) == int(run_cfg.n_output))
+        & np.isclose(df["s_rho"].astype(float), float(run_cfg.s_rho))
+        & np.isclose(df["s_phi"].astype(float), float(run_cfg.s_phi))
+        & np.isclose(df["s_v"].astype(float), float(run_cfg.s_v))
+        & (df["with_jc"].astype(bool) == bool(run_cfg.with_jc))
+        & (df["use_quantum_time"].astype(bool) == bool(run_cfg.use_quantum_time))
+    )
+    return df[mask]
+
+
+def find_calibrated_row(df: pd.DataFrame, run_cfg: "RunConfig") -> Optional[pd.Series]:
+    """
+    Return best existing calibration row for this exact RunConfig, or None.
+
+    "Best" is taken as the row with smallest |rel_error|.
+    """
+    rows = _rows_match_run_cfg(df, run_cfg)
     if rows.empty:
         return None
     idx = rows["rel_error"].abs().idxmin()
@@ -113,29 +169,40 @@ def find_calibrated_row(df: pd.DataFrame, p: float, e: float) -> Optional[pd.Ser
 
 
 def get_or_calibrate_complexity_power(
-    p: float,
-    e: float,
+    run_cfg: "RunConfig",
     df_calib: pd.DataFrame,
-    n_orbits_calib: int = 8,
-    n_output_calib: int = 8000,
 ) -> Tuple[float, pd.DataFrame, dict]:
     """
-    Look up complexity_power for (p,e) in df_calib.
-    If not present, call calibrate_complexity_power and append the row.
+    Look up complexity_power for the full slider configuration (run_cfg).
+    If not present, call calibrate_complexity_power with the SAME
+    (p, e, n_orbits, n_output) and append a new calibration row keyed by
+    the complete slider state.
+
+    This ensures that changing ANY slider knob (p, e, n_orbits, n_output,
+    s_rho, s_phi, s_v, with_jc, use_quantum_time) will trigger a fresh
+    calibration if that combination has not been seen before.
     """
-    row = find_calibrated_row(df_calib, p, e)
+    row = find_calibrated_row(df_calib, run_cfg)
     if row is not None and bool(row.get("ok", True)):
         cp = float(row["complexity_power"])
         record = row.to_dict()
         return cp, df_calib, record
 
-    print(f"\n[CAL] No record for (p={p:.3f}, e={e:.3f}) → running calibrate_complexity_power")
+    # Need to calibrate for this exact orbital configuration
+    print(
+        f"\n[CAL] No record for (p={run_cfg.p:.3f}, e={run_cfg.e:.3f}, "
+        f"n_orbits={run_cfg.n_orbits}, n_output={run_cfg.n_output}, "
+        f"s_rho={run_cfg.s_rho:.3f}, s_phi={run_cfg.s_phi:.3f}, s_v={run_cfg.s_v:.3f}, "
+        f"with_jc={run_cfg.with_jc}, use_quantum_time={run_cfg.use_quantum_time})"
+        " → running calibrate_complexity_power"
+    )
 
+    # Use the current orbital sampling for calibration
     res = calibrate_complexity_power(
-        p=p,
-        e=e,
-        n_orbits=n_orbits_calib,
-        n_output=n_output_calib,
+        p=float(run_cfg.p),
+        e=float(run_cfg.e),
+        n_orbits=int(run_cfg.n_orbits),
+        n_output=int(run_cfg.n_output),
         coarse_range=(0.2, 2.5),
         coarse_steps=9,
         fine_half_width=0.20,
@@ -143,10 +210,15 @@ def get_or_calibrate_complexity_power(
     )
 
     record = {
-        "p": float(res.get("p", p)),
-        "e": float(res.get("e", e)),
-        "n_orbits": int(n_orbits_calib),
-        "n_output": int(n_output_calib),
+        "p": float(res.get("p", run_cfg.p)),
+        "e": float(res.get("e", run_cfg.e)),
+        "n_orbits": int(res.get("n_orbits", run_cfg.n_orbits)),
+        "n_output": int(res.get("n_output", run_cfg.n_output)),
+        "s_rho": float(run_cfg.s_rho),
+        "s_phi": float(run_cfg.s_phi),
+        "s_v": float(run_cfg.s_v),
+        "with_jc": bool(run_cfg.with_jc),
+        "use_quantum_time": bool(run_cfg.use_quantum_time),
         "ok": bool(res.get("ok", False)),
         "complexity_power": float(res.get("complexity_power", np.nan)),
         "rel_error": float(res.get("rel_error", np.nan)),
@@ -206,6 +278,9 @@ def compute_chsh_bounds(beta: float) -> Tuple[float, float, bool]:
 # ======================================================================
 #  JC OPERATORS + ENTANGLEMENT HELPERS
 # ======================================================================
+
+# ... (everything from build_jc_operators down through all the JC / Bell helpers
+#      and dataclasses is unchanged; keeping as in your original) ...
 
 def build_jc_operators(n_cavity: int):
     """
@@ -324,7 +399,6 @@ def discord_from_rhoq(rho_q: np.ndarray, C_Q: float) -> float:
 #  EXTENDED SIMULATION RESULTS
 # ======================================================================
 
-
 @dataclass
 class RunConfig:
     """Extended with Bell measurement settings."""
@@ -413,9 +487,8 @@ def run_entangled_simulation(run_cfg: RunConfig, status_cb=None) -> BellSimulati
     log("Initializing quantum correlation trackers...")
 
     df_calib = load_calibration_df()
-    cp, df_calib, _ = get_or_calibrate_complexity_power(
-        run_cfg.p, run_cfg.e, df_calib, 8, 8000
-    )
+    # NEW: calibrate keyed on FULL run_cfg (all slider knobs)
+    cp, df_calib, _ = get_or_calibrate_complexity_power(run_cfg, df_calib)
 
     cfg = Config()
     cfg.p = float(run_cfg.p)
@@ -455,6 +528,10 @@ def run_entangled_simulation(run_cfg: RunConfig, status_cb=None) -> BellSimulati
         with_jc=run_cfg.with_jc,
         use_quantum_time=run_cfg.use_quantum_time,
     )
+
+    # ... everything below here is unchanged from your version:
+    # extract base data, compute C_Q/clock/beta, JC evolution,
+    # Bell violations, precession, and BellSimulationResults return ...
 
     # Extract base data
     t = df["t"].values
@@ -578,7 +655,7 @@ def run_entangled_simulation(run_cfg: RunConfig, status_cb=None) -> BellSimulati
 
             # --- Added: qubit drive to get full Bloch precession ---
             # Drive strength modulated by complexity, phase locked to the orbital angle.
-            drive_amp = 0.40 * (0.3 + 0.7 * CQi)      # tweak 0.20 up/down to taste
+            drive_amp = 0.40 * (0.3 + 0.7 * CQi)      # tweak 0.40 up/down to taste
             phi_drive = float(orbital_phase[i])
 
             H_drive = drive_amp * (
@@ -633,7 +710,6 @@ def run_entangled_simulation(run_cfg: RunConfig, status_cb=None) -> BellSimulati
             sz /= norm
 
         bloch_vecs.append([sx, sy, sz])
-
 
         # photon number and simple coherence norm
         n_mean = np.real(np.trace(rho @ N_full))
@@ -729,6 +805,7 @@ def run_entangled_simulation(run_cfg: RunConfig, status_cb=None) -> BellSimulati
         max_violation=max_violation,
         total_violation_fraction=total_violation_fraction,
     )
+
 
 # ======================================================================
 #  ENTANGLEMENT CONSOLE (Stage 1)

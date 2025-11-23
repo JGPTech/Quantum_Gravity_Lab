@@ -44,6 +44,8 @@ from calibrate import calibrate_complexity_power
 # ======================================================================
 #  THEME CONFIGURATION — DARK MATTER HUD
 # ======================================================================
+ANIM_REFS = []  # keep strong refs to animations so Matplotlib doesn't whine
+
 THEME = {
     "bg": "#05060a",         # Deep void
     "panel": "#11151c",      # HUD panel
@@ -149,57 +151,154 @@ class SimulationResults:
 
 
 # ======================================================================
-#  CALIBRATION HELPERS  (same logic as offline edition)
+#  CALIBRATION HELPERS  (upgraded: keyed by full slider config)
 # ======================================================================
+CALIBRATION_CSV = "complexity_power_grid_scan.csv"
+
 
 def load_calibration_df() -> pd.DataFrame:
+    """
+    Load the calibration table, upgrading older CSVs by adding any
+    missing columns with sensible defaults.
+    """
     if os.path.exists(CALIBRATION_CSV):
-        return pd.read_csv(CALIBRATION_CSV)
-    cols = [
-        "p", "e", "n_orbits", "n_output", "ok", "complexity_power",
-        "rel_error", "measured_shift", "theory_shift", "n_peri",
-        "k_rq_ratio", "r_q_transition",
-    ]
-    return pd.DataFrame(columns=cols)
+        df = pd.read_csv(CALIBRATION_CSV)
+    else:
+        df = pd.DataFrame()
+
+    # Full schema we now care about
+    cols_defaults = {
+        "p": np.nan,
+        "e": np.nan,
+        "n_orbits": np.nan,
+        "n_output": np.nan,
+        "s_rho": np.nan,
+        "s_phi": np.nan,
+        "s_v": np.nan,
+        "use_quantum_time": False,
+        "with_jc": True,
+        "ok": True,
+        "complexity_power": np.nan,
+        "rel_error": np.nan,
+        "measured_shift": np.nan,
+        "theory_shift": np.nan,
+        "n_peri": 0,
+        "k_rq_ratio": np.nan,
+        "r_q_transition": np.nan,
+    }
+
+    # Add any missing columns
+    for col, default in cols_defaults.items():
+        if col not in df.columns:
+            df[col] = default
+
+    return df
 
 
 def save_calibration_df(df: pd.DataFrame) -> None:
     df.to_csv(CALIBRATION_CSV, index=False)
 
 
-def find_calibrated_row(df: pd.DataFrame, p: float, e: float) -> pd.Series | None:
+def find_calibrated_row(
+    df: pd.DataFrame,
+    p: float,
+    e: float,
+    n_orbits: int,
+    n_output: int,
+    s_rho: float,
+    s_phi: float,
+    s_v: float,
+    use_quantum_time: bool,
+    with_jc: bool,
+) -> pd.Series | None:
+    """
+    Look up an existing calibration row that matches the full slider
+    configuration. If any slider (or orbit sampling) changes, we treat
+    it as a distinct calibration point.
+    """
     if df.empty:
         return None
-    rows = df[(np.isclose(df["p"], p)) & (np.isclose(df["e"], e))]
+
+    mask = (
+        np.isclose(df["p"], p)
+        & np.isclose(df["e"], e)
+        & np.isclose(df["n_orbits"], n_orbits)
+        & np.isclose(df["n_output"], n_output)
+        & np.isclose(df["s_rho"], s_rho)
+        & np.isclose(df["s_phi"], s_phi)
+        & np.isclose(df["s_v"], s_v)
+        & (df["use_quantum_time"] == bool(use_quantum_time))
+        & (df["with_jc"] == bool(with_jc))
+    )
+
+    rows = df[mask]
     if rows.empty:
         return None
-    idx = rows["rel_error"].abs().idxmin()
+
+    # If multiple rows exist (old junk etc.), pick the one with smallest |rel_error|
+    if "rel_error" in rows.columns:
+        idx = rows["rel_error"].abs().idxmin()
+    else:
+        idx = rows.index[0]
+
     return rows.loc[idx]
 
 
 def get_or_calibrate_complexity_power(
     p: float,
     e: float,
+    n_orbits: int,
+    n_output: int,
+    s_rho: float,
+    s_phi: float,
+    s_v: float,
+    use_quantum_time: bool,
+    with_jc: bool,
     df_calib: pd.DataFrame,
-    n_orbits_calib: int = 8,
-    n_output_calib: int = 8000,
 ) -> tuple[float, pd.DataFrame, dict]:
     """
-    Look up complexity_power for (p,e) in df_calib.
-    If missing, call calibrate_complexity_power and append to CSV.
+    Look up complexity_power for the full (p, e, slider config) combo.
+    If missing, call calibrate_complexity_power *for that combo* and
+    append to the CSV.
+
+    This means:
+      - change ANY slider (p, e, n_orbits, n_output, s_rho, s_phi, s_v,
+        use_quantum_time, with_jc)
+      - and we will retrain + store a fresh row.
     """
-    row = find_calibrated_row(df_calib, p, e)
+    row = find_calibrated_row(
+        df_calib,
+        p=p,
+        e=e,
+        n_orbits=n_orbits,
+        n_output=n_output,
+        s_rho=s_rho,
+        s_phi=s_phi,
+        s_v=s_v,
+        use_quantum_time=use_quantum_time,
+        with_jc=with_jc,
+    )
+
     if row is not None and bool(row.get("ok", True)):
         cp = float(row["complexity_power"])
         return cp, df_calib, row.to_dict()
 
-    # Need to calibrate
-    print(f"[CAL] No record for (p={p:.3f}, e={e:.3f}) → running calibrate_complexity_power")
+    # Need to calibrate for this exact configuration
+    print(
+        f"[CAL] No record for "
+        f"(p={p:.3f}, e={e:.3f}, n_orbits={n_orbits}, n_output={n_output}, "
+        f"s_rho={s_rho:.3f}, s_phi={s_phi:.3f}, s_v={s_v:.3f}, "
+        f"use_qt={use_quantum_time}, with_jc={with_jc}) "
+        f"→ running calibrate_complexity_power"
+    )
+
+    # NOTE: calibrate_complexity_power itself only cares about (p,e,n_orbits,n_output),
+    # but we still key + store with the full slider config.
     res = calibrate_complexity_power(
         p=p,
         e=e,
-        n_orbits=n_orbits_calib,
-        n_output=n_output_calib,
+        n_orbits=n_orbits,
+        n_output=n_output,
         coarse_range=(0.2, 2.5),
         coarse_steps=9,
         fine_half_width=0.20,
@@ -209,8 +308,13 @@ def get_or_calibrate_complexity_power(
     record = {
         "p": float(res.get("p", p)),
         "e": float(res.get("e", e)),
-        "n_orbits": int(n_orbits_calib),
-        "n_output": int(n_output_calib),
+        "n_orbits": int(res.get("n_orbits", n_orbits)),
+        "n_output": int(res.get("n_output", n_output)),
+        "s_rho": float(s_rho),
+        "s_phi": float(s_phi),
+        "s_v": float(s_v),
+        "use_quantum_time": bool(use_quantum_time),
+        "with_jc": bool(with_jc),
         "ok": bool(res.get("ok", False)),
         "complexity_power": float(res.get("complexity_power", np.nan)),
         "rel_error": float(res.get("rel_error", np.nan)),
@@ -223,6 +327,7 @@ def get_or_calibrate_complexity_power(
 
     df_calib = pd.concat([df_calib, pd.DataFrame([record])], ignore_index=True)
     save_calibration_df(df_calib)
+
     cp = float(record["complexity_power"])
     print(f"[CAL] Stored calibration: complexity_power = {cp:.6f}")
     return cp, df_calib, record
@@ -482,15 +587,27 @@ def run_offline_simulation(run_cfg: RunConfig, status_cb=None) -> SimulationResu
     log("> LOADING CALIBRATION MANIFOLD …")
     df_calib = load_calibration_df()
 
-    # 2) Solve / load complexity exponent
-    log(f"> SOLVING DARK COMPLEXITY for p={run_cfg.p:.3f}, e={run_cfg.e:.3f}")
+    # 2) Solve / load complexity exponent (keyed by full slider config)
+    log(
+        f"> SOLVING DARK COMPLEXITY for "
+        f"p={run_cfg.p:.3f}, e={run_cfg.e:.3f}, "
+        f"n_orbits={run_cfg.n_orbits}, n_output={run_cfg.n_output}, "
+        f"s_rho={run_cfg.s_rho:.2f}, s_phi={run_cfg.s_phi:.2f}, s_v={run_cfg.s_v:.2f}"
+    )
+
     cp, df_calib, calib_record = get_or_calibrate_complexity_power(
         p=run_cfg.p,
         e=run_cfg.e,
+        n_orbits=run_cfg.n_orbits,
+        n_output=run_cfg.n_output,
+        s_rho=run_cfg.s_rho,
+        s_phi=run_cfg.s_phi,
+        s_v=run_cfg.s_v,
+        use_quantum_time=run_cfg.use_quantum_time,
+        with_jc=run_cfg.with_jc,
         df_calib=df_calib,
-        n_orbits_calib=8,
-        n_output_calib=8000,
     )
+
 
     # 3) Configure orbit
     log("> CONFIGURING UNIFIED SANDBOX …")
@@ -1042,6 +1159,8 @@ class TelemetryViewer:
             interval=40,
             blit=False,
         )
+        ANIM_REFS.append(self.anim)
+
 
 
     # ---- helpers ------------------------------------------------------
