@@ -232,10 +232,9 @@ def get_or_calibrate_complexity_power(
         "e": e,
         "n_orbits": n_orbits,
         "n_output": n_output,
-        # grid scan has no JC sliders — mark as NaN so they never match UI slider states
-        "s_rho": np.nan,
-        "s_phi": np.nan,
-        "s_v": np.nan,
+        "s_rho": float(s_rho),
+        "s_phi": float(s_phi),
+        "s_v": float(s_v),
         "ok": bool(res.get("ok", False)),
         "complexity_power": float(res.get("complexity_power", np.nan)),
         "rel_error": float(res.get("rel_error", np.nan)),
@@ -1446,3 +1445,4 @@ if __name__ == "__main__":
     print("=" * 70)
     ui = RunSelectionUI()
     ui.run()
+
