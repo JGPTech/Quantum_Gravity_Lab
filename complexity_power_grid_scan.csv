@@ -1,0 +1,2 @@
+p,e,n_orbits,n_output,s_rho,s_phi,s_v,use_quantum_time,with_jc,ok,complexity_power,rel_error,measured_shift,theory_shift,n_peri,k_rq_ratio,r_q_transition
+60.0,0.8,6.0,8000.0,1.0,0.6,0.4,True,True,True,1.2229403633615723,0.002237434530653416,0.0031345635457054044,0.0031415926535897933,6,1.77771,533.3130000000001
