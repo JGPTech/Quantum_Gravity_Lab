@@ -383,8 +383,10 @@ def _compute_acceleration_components(
     if abs(cfg.a_spin) > 0.0:
         pref = 2.0 * cfg.a_spin * (cfg.G**2) * (cfg.M**2) / (cfg.c**3)
         Omega_z = pref / (r**3)
-        ax += -Omega_z * vy
-        ay +=  Omega_z * vx
+        # a_LT = Omega * (v x z_hat), as in the README.  A prograde spin must REDUCE the periapsis advance (exact
+        # Kerr); the earlier z_hat x v had the opposite sign (checked against EinsteinPy in tests/test_einsteinpy.py).
+        ax +=  Omega_z * vy
+        ay += -Omega_z * vx
 
     return ax, ay, az
 
