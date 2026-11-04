@@ -331,8 +331,8 @@ def x_winding(a0: float, t_outer: float, t_inner: float) -> float:
     """
     Total change in x between t = -t_outer and +t_outer, excluding |t| < t_inner, to leading order:
     2 (2 / a0) ln(t_outer / t_inner).  Diverges as t_inner -> 0.  Divide by the period of x (4 pi for the
-    standard Euler-angle S^3; this depends on the identification, which I have not checked against the paper)
-    to count turns.
+    standard Euler-angle S^3, checked in tests/test_s3_identifications.py; whether the paper uses S^3 or the quotient
+    SO(3), where it would be 2 pi, is not checked) to count turns.
     """
     return float(2.0 * (2.0 / a0) * np.log(t_outer / t_inner))
 

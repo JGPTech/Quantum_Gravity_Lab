@@ -9,7 +9,8 @@ metrics we already have.  Short version of what comes out (the tests pin each st
 * In the pancake model the axis that collapses is R_1 ~ a0 t, the closed Hopf-fibre direction.  A radial null ray
   along it covers a comoving angle  h_1 = int 2 dt / R_1 ~ (2/a0) ln(t / t_in),  which diverges as t_in -> 0.  So
   the *collapsing* direction has no particle horizon.  But that direction is a circle (period 4 pi in the
-  standard Euler-angle S^3; the identification is not checked against the paper) whose proper circumference
+  standard Euler-angle S^3, checked in tests/test_s3_identifications.py; whether the paper's slices are S^3 and not
+  the quotient SO(3), where the period would be 2 pi, is not checked) whose proper circumference
   2 pi R_1 -> 0, so "arbitrary distance" there means winding ever more times round a vanishing circle.
 * The two *open* directions (R_2 = R_3 -> b0, finite) have a finite comoving horizon, h_2 ~ 2 t / b0: light covers
   a proper distance ~ t, exactly as in an ordinary big bang.  Their horizon is not broken.  Two antipodal points
@@ -47,7 +48,7 @@ from scipy.integrate import cumulative_trapezoid
 import qgl_kasner as kn
 import qgl_pancake as qp
 
-FIBRE_PERIOD = 4.0 * np.pi      # period of the Euler angle psi on the standard S^3 (identification not checked)
+FIBRE_PERIOD = 4.0 * np.pi      # period of the Euler angle psi on the standard S^3 (tests/test_s3_identifications.py; S^3 vs SO(3) in the paper not checked)
 
 
 # --------------------------------------------------------------------------
