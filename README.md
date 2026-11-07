@@ -156,6 +156,29 @@ pytest tests/ -q            # add --runslow for the slow EinsteinPy checks
 * Fang Fang (2017) "The Quasicrystalline Spin Network" https://www.youtube.com/watch?v=_g2JWp6F_xQ
 * https://quantumgravityresearch.org/portfolio/a-deep-link-between-3d-and-8d/
 * J.F. Sadoc, R. Mosseri (1993)  "The E8 lattice and quasicrystals: Geometry, number theory and quasicrystals"  https://hal.science/hal-04898979v1  https://doi.org/10.1016/0022-3093(93)90351-W
+  (Citation check pending: a MaRDI record lists this title as *J. Phys. A* 26 (1993), DOI 10.1088/0305-4470/26/8/009; neither source page was retrievable. See `QUANTGRAV.md`.)
+
+* M. Amaral, R. Clawson, K. Irwin, *Quasicrystalline Spin Foam with Matter: Definitions and Examples*, [arXiv:2306.01964](https://arxiv.org/abs/2306.01964).
+  Cut-and-project model sets, SU(2) coherent states and a restricted EPRL-style amplitude on quasicrystalline spin networks.
+
+* C. Anastopoulos, *Time and causality in quantum gravity*, [arXiv:2609.22890](https://arxiv.org/abs/2609.22890).
+  Survey arguing the problem of time predates quantum gravity and persists in weak-gravity regimes. Relevant to QGL's choice of an external orbit time.
+
+* J. Foo, C. Suryaatmadja, R. B. Mann, M. Zych, *Relativity and decoherence of spacetime superpositions*, *npj Quantum Information* 12 (2026) ([ScienceDaily summary](https://www.sciencedaily.com/releases/2026/08/260828005226.htm)).
+  Some "superposition of gravity" setups are equivalent to quantum particles on a classical spacetime, so some proposed quantum-gravity signatures are ambiguous.
+
+* Quantum Galileo Interferometer: atom-interferometer measurement of the quantum phase of a freely falling atom, *Science Advances* (Sep 2026) ([Oxford news](https://www.ox.ac.uk/news/2026-08-28-scientists-observe-einsteins-gravity-in-the-quantum-world), [Quantum Insider](https://thequantuminsider.com/2026/09/02/scientists-observe-einsteins-gravity-in-the-quantum-world/)).
+  Consistent with the equivalence principle under the conditions tested. Press coverage only; the paper itself was not read.
+
+* K. S. Kumar, J. Marto, *Quantum (quadratic) gravity: replacing the massive tensor ghost with an inverted harmonic oscillator-like instability*, [arXiv:2603.07150](https://arxiv.org/abs/2603.07150) ([phys.org coverage](https://phys.org/news/2026-03-quadratic-gravity-theory-reshapes-quantum.html)).
+  The link between the phys.org article and this arXiv paper is inferred from the headline, not confirmed.
+
+* G. Bianconi, *Thermodynamics of the gravity from entropy theory*, *Phys. Rev. D* 114 (2026) ([ScienceDaily summary](https://www.sciencedaily.com/releases/2026/07/260719035947.htm)).
+  Gravity from Entropy applied to FRW cosmology; reproduces GR at weak curvature and gives a dynamical dark-energy term otherwise.
+
+* *Phys. Rev. D*, DOI [10.1103/kbkv-vs5t](https://journals.aps.org/prd/abstract/10.1103/kbkv-vs5t). Title and abstract not yet retrieved.
+
+Notes on all of the above are in `QUANTGRAV.md`.
 
 * P.-P. Dechant, A. N. Lasenby, M. P. Hobson, *An anisotropic, non-singular early universe model leading to a realistic cosmology*, [arXiv:0809.4335](https://arxiv.org/html/0809.4335v2).
   A scalar field in a biaxial Bianchi IX geometry gives a “pancaking” Big Bang with finite curvature invariants.
