@@ -155,7 +155,7 @@ pytest tests/ -q            # add --runslow for the slow EinsteinPy checks
 ### References:
 * Fang Fang (2017) "The Quasicrystalline Spin Network" https://www.youtube.com/watch?v=_g2JWp6F_xQ
 * https://quantumgravityresearch.org/portfolio/a-deep-link-between-3d-and-8d/
-* J.F. Sadoc a, R. Mosseri (1993) https://doi.org/10.1016/0022-3093(93)90351-W
+* J.F. Sadoc, R. Mosseri (1993)  "The E8 lattice and quasicrystals: Geometry, number theory and quasicrystals"  https://hal.science/hal-04898979v1  https://doi.org/10.1016/0022-3093(93)90351-W
 
 * P.-P. Dechant, A. N. Lasenby, M. P. Hobson, *An anisotropic, non-singular early universe model leading to a realistic cosmology*, [arXiv:0809.4335](https://arxiv.org/html/0809.4335v2).
   A scalar field in a biaxial Bianchi IX geometry gives a “pancaking” Big Bang with finite curvature invariants.
